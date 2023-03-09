@@ -1,0 +1,89 @@
+-- Total cases vs Total deaths
+select location,date, total_cases, total_deaths, (total_deaths/total_cases)*100 as DeathPercentage 
+from coviddeaths
+where location like '%States%'
+and continent is not null
+order by 1,2
+
+-- Total cases vs Population
+select location,date, total_cases, population, (total_cases/population)*100 as PercentPopulationInfected 
+from coviddeaths
+where continent is not null
+order by 1,2
+
+--Countries with highest infection rate compared to population
+
+select location, population, max((total_cases/population))*100 as PercentPopulationInfected 
+from coviddeaths
+group by location, population
+order by PercentPopulationInfected desc
+
+--Countries with highest death rate compared to population
+
+select location, max(total_deaths) as TotalDeathcount 
+from coviddeaths
+where continent is not null
+group by location
+order by TotalDeathcount desc
+
+--Continents with highest death rate compared to population
+select continent, max((total_deaths)) as totaldeathcount
+from coviddeaths
+where continent is not null
+group by continent
+order by totaldeathcount desc
+
+-- DeathPercent
+select date, sum(cast(new_cases as float)) as newCases, sum(cast(new_deaths as float)) as newDeaths ,
+case when sum(new_cases)=0 then null 
+else 
+sum(cast(new_deaths as float))/sum(cast(new_cases as float)) *100
+end as deathPercentage
+from coviddeaths
+group by date
+order by 1, 2
+
+select * from  covidvaccination
+
+--Total Population vs vaccinations
+--using cte
+
+with PopulationVsVacc (date, continent, location, population, new_vaccinations, rollingPeopleVaccinated)
+as (
+select d.date, d.continent, d.location, d.population, v.new_vaccinations,
+sum(v.new_vaccinations) over (partition by d.location order by d.location, d.date) as rollingPeopleVaccinated	
+from coviddeaths d
+join covidvaccination v on d.location = v.location and d.date = v.date
+where d.continent is not null
+)
+select *, (rollingPeopleVaccinated/population)*100 from PopulationVsVacc
+
+--Temp table
+drop table if exists PercentpopulationVaccinated
+create temp table PercentpopulationVaccinated
+(	
+	continent varchar(50),
+	location varchar(50),
+	date date,
+	population bigint,
+	new_vaccinations float,
+	rollingPeopleVaccinated float
+)
+
+insert into PercentpopulationVaccinated
+select d.continent, d.location, d.date, d.population, v.new_vaccinations,
+sum(v.new_vaccinations) over (partition by d.location order by d.location, d.date) as rollingPeopleVaccinated	
+from coviddeaths d
+join covidvaccination v on d.location = v.location and d.date = v.date
+
+select *, (rollingPeopleVaccinated/population)*100 from PercentpopulationVaccinated
+
+-- creating view to store data for later visualization
+create view PercentpopulationVaccinated as 
+select d.continent, d.location, d.date, d.population, v.new_vaccinations,
+sum(v.new_vaccinations) over (partition by d.location order by d.location, d.date) as rollingPeopleVaccinated	
+from coviddeaths d
+join covidvaccination v on d.location = v.location and d.date = v.date
+
+select *, (rollingPeopleVaccinated/population)*100 from PercentpopulationVaccinated
+
